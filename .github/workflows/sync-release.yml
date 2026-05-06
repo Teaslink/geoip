@@ -1,0 +1,28 @@
+name: Sync upstream release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 18 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync release branch
+        run: |
+          git clone --depth 1 --branch release https://github.com/Loyalsoldier/geoip.git upstream-release
+          cd upstream-release
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add target "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push --force target HEAD:release
+
+      - name: Purge jsDelivr CDN
+        run: |
+          for file in geoip.dat geoip.dat.sha256sum text/cn.txt text/telegram.txt; do
+            curl -fsSL "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}" || true
+          done
