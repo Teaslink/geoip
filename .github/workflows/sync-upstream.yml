@@ -1,0 +1,23 @@
+name: Sync upstream master
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每周日 01:00（北京时间，UTC+8）
+    - cron: "0 17 * * 6"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync upstream master
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            --method POST \
+            "repos/${{ github.repository }}/merge-upstream" \
+            --field branch=master
