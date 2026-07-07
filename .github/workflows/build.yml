@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -17,6 +17,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: ./go.mod
+          cache-dependency-path: ./go.sum
 
       - name: Set variables
         run: |
@@ -79,6 +80,7 @@ jobs:
           done
 
       - name: Git push assets to "release" branch
+        if: github.event_name != 'pull_request'
         run: |
           cd output || exit 1
           git init
@@ -91,6 +93,7 @@ jobs:
           git push -f -u geoip release
 
       - name: Purge jsdelivr CDN
+        if: github.event_name != 'pull_request'
         run: |
           cd output || exit 1
           for file in $(ls); do
@@ -98,6 +101,7 @@ jobs:
           done
 
       - name: Remove some files to avoid publishing to GitHub release
+        if: github.event_name != 'pull_request'
         run: |
           rm -rf ./output/*.{gz,zip}
           rm -rf ./output/GeoLite2-*.csv
@@ -106,6 +110,7 @@ jobs:
           rm -rf ./output/{clash,dat,mrs,nginx,srs,surge,text}
 
       - name: Upload files to GitHub release
+        if: github.event_name != 'pull_request'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
