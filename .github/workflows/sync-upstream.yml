@@ -3,12 +3,10 @@ name: Sync upstream master
 on:
   workflow_dispatch:
   schedule:
-    # 每周日 01:00（北京时间，UTC+8）
-    - cron: "0 17 * * 6"
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   sync:
@@ -19,64 +17,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reset master to upstream and re-apply fork customizations
+      - name: Sync master to upstream
         run: |
           set -e
-          # 1. 先把 fork 自己的两个 workflow 文件备份下来（reset 会把它们删掉）
-          mkdir -p /tmp/keep
-          cp .github/workflows/sync-upstream.yml /tmp/keep/
-          cp .github/workflows/sync-release.yml /tmp/keep/
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote add upstream https://github.com/Loyalsoldier/geoip.git
+          git remote add upstream https://github.com/Loyalsoldier/geoip.git || git remote set-url upstream https://github.com/Loyalsoldier/geoip.git
           git fetch upstream
-
-          # 2. master 直接重置到上游最新（不走合并，所以永远不会冲突）
           git checkout master
           git reset --hard upstream/master
-
-          # 3. 恢复 fork 自己的 workflow 文件
-          cp /tmp/keep/sync-upstream.yml .github/workflows/sync-upstream.yml
-          cp /tmp/keep/sync-release.yml .github/workflows/sync-release.yml
-
-          # 4. fork 定制：build.yml 只保留手动触发（不跟上游抢 release 分支的构建）
-          awk '
-            /^on:/ {
-              print "on:"
-              print "  workflow_dispatch:"
-              print "    inputs:"
-              print "      download_geoip_db_from_github:"
-              print "        description: \"Download GeoLite2 databases from GitHub instead of MaxMind\""
-              print "        type: boolean"
-              print "        default: false"
-              skip = 1
-              next
-            }
-            /^permissions:/ { skip = 0 }
-            !skip
-          ' .github/workflows/build.yml > /tmp/build.yml.new
-          mv /tmp/build.yml.new .github/workflows/build.yml
-
-          # 5. fork 定制：README 里的下载链接指向本 fork
-          sed -i 's|Loyalsoldier/geoip|Teaslink/geoip|g' README.md
-
-          # 6. 校验：build.yml 结构完整、只剩手动触发；README 不得残留上游链接
-          grep -q '^jobs:' .github/workflows/build.yml
-          grep -q '^permissions:' .github/workflows/build.yml
-          grep -q '^  workflow_dispatch:' .github/workflows/build.yml
-          if grep -q 'schedule:' .github/workflows/build.yml; then
-            echo "ERROR: build.yml still has schedule trigger"; exit 1
-          fi
-          if grep -q 'Loyalsoldier/geoip' README.md; then
-            echo "ERROR: README still references upstream"; exit 1
-          fi
-
-          # 7. 有变化才提交并强制推送（已同步时直接跳过）
-          git add -A
-          if git diff --cached --quiet; then
-            echo "already in sync, nothing to push"
-          else
-            git commit -m "Sync upstream master + fork customizations"
-            git push --force origin master
-          fi
+          git push --force origin master
